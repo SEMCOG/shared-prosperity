@@ -362,7 +362,7 @@ income_by_puma = weighted_per_df.pivot_table(values='hhi3cl18', index=["stpuma",
 
 # * Save as mean and median income by puma as csv file
 # export delimited "$final_data/income_by_puma.csv", replace
-income_by_puma.to_csv(os.path.join((final_data, 'income_by_puma_test.csv')))
+income_by_puma.to_csv(os.path.join(final_data, 'income_by_puma_test.csv'), index=False)
 # * Restore Microdata
 # restore
 
@@ -424,4 +424,4 @@ del income_by_puma['index']
 
 # * Save data 
 # export delimited "$final_data/income_categories.csv", replace
-income_by_puma.to_csv(os.path.join((final_data, 'income_categories_test.csv')))
+income_by_puma.to_csv(os.path.join(final_data, 'income_categories_test.csv'), index=False)
