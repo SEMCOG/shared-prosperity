@@ -1,17 +1,28 @@
 # # /**************************
 # # * A file to clean data for analysis in order to 
 # # * replicate the analysis in the shared prosperity report. 
-# # *
+# # * 
 # *
-# * Owen Kay
-# * Edited: 2/5/21
+# * Owen Kay (UofM)
+# * Python rewritten by Tian Xie(SEMCOG)
+# * Edited: 03-11-2021
+# * Stata codes are commented out
 # **************************/
 # clear all
 # capture log close
 import pandas as pd
 import numpy as np
 import os
+import time
 
+start_time = time.time()
+last_time = start_time
+print('program start at ', time.ctime())
+def print_with_runtime(msg):
+  global last_time
+  current_time = time.time()
+  print("%s"%(msg), "in %.4fs since start,"%(current_time - start_time), "last step tooks %.4fs"%(current_time - last_time))
+  last_time = time.time()
 
 
 # * Change to file path to reflect location of your directory
@@ -33,12 +44,13 @@ final_data = os.path.join(path, 'final_data')
 # /*********************
 # * Read and Clean PCE 
 # *********************/
+print_with_runtime("Read and Clean PCE...")
 # import delimited "$raw_data/PCE_annual.csv", clear
 pce_annual_table = pd.read_csv(os.path.join(raw_data, 'PCE_annual.csv'))
 # gen year = substr(date,-4,4)
-pce_annual_table.DATE = pce_annual_table.DATE.apply(lambda x: x[-4:])
+pce_annual_table.loc[ :, 'DATE'] = pce_annual_table.DATE.apply(lambda x: x[-4:])
 # destring year, replace 
-pce_annual_table.DATE = pce_annual_table.DATE.astype('int32')
+pce_annual_table.loc[ :, 'DATE']  = pce_annual_table.DATE.astype('int32')
 pce_annual_table = pce_annual_table.rename(columns={"DATE": "year", "PCE": "pce"})
 # keep year pce
 # save "$int_data/pce.dta", replace
@@ -47,12 +59,13 @@ pce_annual_table.to_stata(os.path.join(int_data, 'pce.dta'), write_index=False)
 # /****************************
 # * Read in MSA PUMA crosswalk
 # ****************************/
+print_with_runtime("Read in MSA PUMA crosswalk...")
 # import excel "$raw_data/MSA2013_PUMA2010_crosswalk.xls", sheet("MSA2013_PUMA2010_crosswalk") firstrow clear
 msa_puma_crosswalk = pd.read_excel(os.path.join(raw_data, 'MSA2013_PUMA2010_crosswalk.xls'), 'MSA2013_PUMA2010_crosswalk')
 # destring (MSACode StateFIPSCode PUMACode), replace
-msa_puma_crosswalk['MSA Code'] = msa_puma_crosswalk['MSA Code'].astype('int32')
-msa_puma_crosswalk['State FIPS Code'] = msa_puma_crosswalk['State FIPS Code'].astype('int32')
-msa_puma_crosswalk['PUMA Code'] = msa_puma_crosswalk['PUMA Code'].astype('int32')
+msa_puma_crosswalk.loc[:, 'MSA Code'] = msa_puma_crosswalk['MSA Code'].astype('int32')
+msa_puma_crosswalk.loc[:, 'State FIPS Code'] = msa_puma_crosswalk['State FIPS Code'].astype('int32')
+msa_puma_crosswalk.loc[:, 'PUMA Code'] = msa_puma_crosswalk['PUMA Code'].astype('int32')
 # rename (MSACode PUMACode StateFIPSCode) (met2013 puma statefip)
 msa_puma_crosswalk = msa_puma_crosswalk.rename({
   "MSA Code": "met2013",
@@ -130,7 +143,7 @@ bea_rpp = bea_rpp[bea_rpp['Description'] == "RPPs: All items"]
 
 # * Extract statefips code from geofips
 # gen statefip = substr(geofips,3,2)
-bea_rpp['statefip'] = bea_rpp['GeoFIPS'].apply(lambda x: int(x[2:4]))
+bea_rpp.loc[:, 'statefip'] = bea_rpp['GeoFIPS'].apply(lambda x: int(x[2:4]))
 
 # * Keep only data on Michigan Nonmetropolitan Protion
 # keep if strpos(geoname,"(Nonmetropolitan Portion)") > 0 
@@ -161,14 +174,15 @@ for geo_name in bea_rpp['GeoName'].unique():
       "rpp_all_items_nonmetro": val,
       "statefip": statefip
     }, ignore_index=True)
-bea_rpp_processed['year'] = bea_rpp_processed['year'].astype('int32')
-bea_rpp_processed['statefip'] = bea_rpp_processed['statefip'].astype('int32')
+bea_rpp_processed.loc[:, 'year'] = bea_rpp_processed['year'].astype('int32')
+bea_rpp_processed.loc[:, 'statefip'] = bea_rpp_processed['statefip'].astype('int32')
 bea_rpp_processed.to_stata(os.path.join(int_data, 'rpp_nonmetro_long.dta'), write_index=False)
 
 
 # /**************************
 # * Read in BEA RPP MSA Data
 # **************************/
+print_with_runtime("Read in BEA RPP MSA Data...")
 # import delimited "$raw_data/MARPP_MSA_2008_2019.csv", clear
 bea_rpp_msa = pd.read_csv(os.path.join(raw_data, 'MARPP_MSA_2008_2019.csv'))
 
@@ -202,7 +216,7 @@ bea_rpp_msa = bea_rpp_msa[
     lambda x: metro_text in x if type(x)== str else False
     )
   ]
-bea_rpp_msa['GeoName'] = bea_rpp_msa['GeoName'].apply(
+bea_rpp_msa.loc[:, 'GeoName'] = bea_rpp_msa['GeoName'].apply(
   lambda x: x.replace("(Metropolitan Statistical Area)", "").strip() 
 )
 
@@ -214,7 +228,7 @@ bea_rpp_msa['GeoName'] = bea_rpp_msa['GeoName'].apply(
 # save "$int_data/rpp_msa_long.dta", replace
 bea_msa_year_list = [int(x) for x in bea_rpp_msa.columns.to_list() if x.isdigit()]
 bea_rpp_msa_processed = pd.DataFrame([], columns=['MSATitle', 'year', 'rpp_all_items', 'met2013'], dtype='object')
-for geo_name in bea_rpp_msa['GeoName'].unique():
+for geo_name in bea_rpp_msa.loc[:, 'GeoName'].unique():
   for year in bea_msa_year_list:
     raw_val = bea_rpp_msa[bea_rpp_msa['GeoName']==geo_name][str(year)].values[0]
     val = None
@@ -233,92 +247,103 @@ for geo_name in bea_rpp_msa['GeoName'].unique():
       "rpp_all_items": val,
       "met2013": met2013
     }, ignore_index=True)
-bea_rpp_msa_processed['year'] = bea_rpp_msa_processed['year'].astype('int32')
-bea_rpp_msa_processed['met2013'] = bea_rpp_msa_processed['met2013'].astype('int32')
-bea_rpp_msa_processed['rpp_all_items'] = bea_rpp_msa_processed['rpp_all_items'].astype('float64')
+bea_rpp_msa_processed.loc[:, 'year'] = bea_rpp_msa_processed['year'].astype('int32')
+bea_rpp_msa_processed.loc[:, 'met2013'] = bea_rpp_msa_processed['met2013'].astype('int32')
+bea_rpp_msa_processed.loc[:, 'rpp_all_items'] = bea_rpp_msa_processed['rpp_all_items'].astype('float64')
 bea_rpp_msa_processed.to_stata(os.path.join(int_data, 'rpp_msa_long_test.dta'), write_index=False)
 
 
 # /*******************
 # * Main Analysis
 # *******************/
+print_with_runtime("Main Analysis")
 
 # /*************************
 # * Read in IPUMS ACS data *
 # *************************/
+print_with_runtime("Read in IPUMS ACS data...")
 # use "$raw_data/acs_2018_2019.dta", clear
 acs_ipums = pd.read_stata(os.path.join(raw_data, 'acs_2018_2019.dta'), convert_categoricals=False)
 
 # * Generate state puma
+print_with_runtime("Generate state puma...")
 # gen stpuma = statefip*100000 + puma
 # gen semcog = (stpuma <= 2603300 & stpuma > 2602700)
-#acs_ipums = acs_ipums[acs_ipums['statefip'] == 'michigan']
-acs_ipums['stpuma'] = acs_ipums[['statefip', 'puma']].apply(lambda x: x.statefip*100000 + x.puma, axis=1)
-acs_ipums = acs_ipums[(acs_ipums['stpuma'] <= 2603300) & (acs_ipums['stpuma'] > 2602700)]
+acs_ipums.loc[:, 'stpuma'] = acs_ipums[['statefip', 'puma']].apply(lambda x: x.statefip*100000 + x.puma, axis=1)
 
 # * Fix incomes coded as missing 
+print_with_runtime("Fix incomes coded as missing...")
 # replace hhincome = . if hhincome == 9999999
-acs_ipums['hhincome'] = acs_ipums['hhincome'].apply(lambda x: np.nan if x==9999999 else x)
+acs_ipums.loc[:, 'hhincome'] = acs_ipums.loc[:, 'hhincome'].apply(lambda x: np.nan if x==9999999 else x)
 # replace incwage = . if incwage == 999999
-acs_ipums['incwage'] = acs_ipums['incwage'].apply(lambda x: np.nan if x==999999 else x)
+acs_ipums.loc[:, 'incwage'] = acs_ipums.loc[:, 'incwage'].apply(lambda x: np.nan if x==999999 else x)
 # replace incwage = . if incwage == 999998
-acs_ipums['incwage'] = acs_ipums['incwage'].apply(lambda x: np.nan if x==999998 else x)
+acs_ipums.loc[:, 'incwage'] = acs_ipums.loc[:, 'incwage'].apply(lambda x: np.nan if x==999998 else x)
 
 
 # * Merge in RPP data and MSA PUMA crosswalk
+print_with_runtime("Merge in RPP data and MSA PUMA crosswalk...")
 # merge m:1  met2013 year using "$int_data/rpp_msa_long.dta", keep(1 3) nogen
 # merge with bea_rpp_msa_processed, add MSATitle and rpp_all_items to acs_ipums
 acs_ipums_merged = acs_ipums.merge(bea_rpp_msa_processed, how='left', on=['met2013', 'year'])
 
 # * Merge in RPP data for nonmetro areas 
 # merge m:1 statefip year using "$int_data/rpp_nonmetro_long.dta", keep(3) nogen
+print_with_runtime("Merge in RPP data for nonmetro areas...")
 acs_ipums_merged = acs_ipums_merged.merge(bea_rpp_processed, how='left', on=['statefip', 'year'])
 
 # * Use nonmetro RPP if not in a metro area
+print_with_runtime("Use nonmetro RPP if not in a metro area...")
 # replace rpp_all_items = rpp_all_items_nonmetro if rpp_all_items == .
-acs_ipums_merged['rpp_all_items'] = acs_ipums_merged['rpp_all_items'].fillna(value=acs_ipums_merged['rpp_all_items_nonmetro'])
+acs_ipums_merged.loc[:, 'rpp_all_items'] = acs_ipums_merged.loc[:, 'rpp_all_items'].fillna(value=acs_ipums_merged['rpp_all_items_nonmetro'])
 
-# * Create adjusted Househould income 
+# * Use nonmetro RPP if not in a metro area
 # gen hhi3      = hhincome*sqrt(3)/sqrt(numprec)
-acs_ipums_merged['hhi3'] = acs_ipums_merged[['hhincome', 'numprec']].apply(lambda x: x.hhincome*np.sqrt(3)/np.sqrt(x.numprec), axis=1)
+acs_ipums_merged.loc[:, 'hhi3'] = acs_ipums_merged[['hhincome', 'numprec']].apply(lambda x: (x.hhincome*np.sqrt(3))/np.sqrt(x.numprec), axis=1)
 # gen hhi3cl    = hhi3/(rpp_all_items*.01)
-acs_ipums_merged['hhi3cl'] = acs_ipums_merged[['hhi3', 'rpp_all_items']].apply(lambda x: x.hhi3/(x.rpp_all_items*0.01), axis=1)
+acs_ipums_merged.loc[:, 'hhi3cl'] = acs_ipums_merged[['hhi3', 'rpp_all_items']].apply(lambda x: x.hhi3/(x.rpp_all_items*0.01), axis=1)
 
 # * Calculate Median Incomes by year and save in a temp file
+print_with_runtime("Calculate Median Incomes by year...")
 # preserve 
 # keep if pernum == 1
-acs_ipums_merged = acs_ipums_merged[acs_ipums_merged['pernum'] == 1]
-# collapse (p50) hhi3 [pw = hhwt], by(year)
-weighted_hh_df = acs_ipums_merged[['hhi3', 'hhwt', 'year']]
-weighted_hh_df['hhwt'] = weighted_hh_df['hhwt'].apply(lambda x: [1 for i in range(x)])
-weighted_hh_df = weighted_hh_df.explode('hhwt')
+median_income_ipums = acs_ipums_merged[acs_ipums_merged['pernum'] == 1]
 
+# collapse (p50) hhi3 [pw = hhwt], by(year)
+weighted_hh_df = median_income_ipums[['hhi3', 'hhwt', 'year']]
+weighted_hh_df.loc[:, 'hhwt'] = weighted_hh_df.loc[:, 'hhwt'].apply(lambda x: [1 for i in range(x)])
+weighted_hh_df.loc[:, :] = weighted_hh_df.explode('hhwt')
+
+# if it contains NaN values 
 hhi3_pivot_by_year = weighted_hh_df.pivot_table(values='hhi3', index=["year"], aggfunc=np.median)
-hhi3_pivot_by_year['hhi3'] = hhi3_pivot_by_year['hhi3'].astype('int32')
+hhi3_pivot_by_year.loc[:, 'hhi3'] = hhi3_pivot_by_year.loc[:, 'hhi3'].astype('float32')
 
 # rename hhi3 median_hhi3
-hhi3_pivot_by_year['median_hhi3'] = hhi3_pivot_by_year['hhi3'] 
-del hhi3_pivot_by_year['hhi3'] 
+hhi3_pivot_by_year.loc[:, 'median_hhi3'] = hhi3_pivot_by_year.loc[:, 'hhi3'] 
+del hhi3_pivot_by_year.loc[:, 'hhi3'] 
 
 # * Save median income in a temporary file to be merged back into ACS data
 # tempfile med_inc
 # save `med_inc'
 
 # * Restore the ACS Microdata and merge in the median HH income
+print_with_runtime("Restore the ACS Microdata and merge in the median HH income...")
 # restore 
 # merge m:1 year using `med_inc', nogen keep(3)
 acs_ipums_merged = acs_ipums_merged.merge(hhi3_pivot_by_year, how='left', on=['year'])
 
 # * Assign classifcation based on relation between hh income to median 
+print_with_runtime("Assign classifcation based on relation between hh income to median...")
 # gen lower_hhi  = (hhi3cl < (2/3)*median_hhi3)
-acs_ipums_merged['lower_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl < (2/3)*x.median_hhi3, axis=1)
+acs_ipums_merged.loc[:, 'lower_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl < (2/3)*x.median_hhi3, axis=1)
 # gen middle_hhi = (hhi3cl >= (2/3)*median_hhi3 & hhi3cl < 2*median_hhi3)
-acs_ipums_merged['middle_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: (x.hhi3cl >= (2/3)*x.median_hhi3) & (x.hhi3cl < 2*x.median_hhi3), axis=1)
+acs_ipums_merged.loc[:, 'middle_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: (x.hhi3cl >= (2/3)*x.median_hhi3) & (x.hhi3cl < 2*x.median_hhi3), axis=1)
 # gen upper_hhi  = (hhi3cl > 2*median_hhi3)
-acs_ipums_merged['upper_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl > 2*x.median_hhi3,  axis=1)
+acs_ipums_merged.loc[:, 'upper_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl > 2*x.median_hhi3,  axis=1)
 
 # * Merge in PCE data and inflation adjust Household income
 # merge m:1 year using "$int_data/pce.dta", nogen keep(3)
+print_with_runtime("Merge in PCE data and inflation adjust Household income...")
 acs_ipums_merged = acs_ipums_merged.merge(pce_annual_table, how='left', on=['year'])
 
 # * Store 2018 pce value in a local variable
@@ -327,35 +352,43 @@ acs_ipums_merged = acs_ipums_merged.merge(pce_annual_table, how='left', on=['yea
 pce_18 = pce_annual_table[pce_annual_table.year == 2018].pce.values[0]
 
 # * Inflation adjust income to 2018 values
+print_with_runtime("Inflation adjust income to 2018 values...")
 # gen hhi3cl18 = hhi3cl * (`pce_18'/pce)
-acs_ipums_merged['hhi3cl18'] = acs_ipums_merged[['hhi3cl', 'pce']].apply(lambda x: x.hhi3cl * (pce_18 / x.pce), axis=1)
+acs_ipums_merged.loc[:, 'hhi3cl18'] = acs_ipums_merged[['hhi3cl', 'pce']].apply(lambda x: x.hhi3cl * (pce_18 / x.pce), axis=1)
 
 # * Create Race/Ethnicity variable
+print_with_runtime("Create Race/Ethnicity variable...")
 # gen race_hispan = "hispanic" if inlist(hispan,1,2,3,4)
-acs_ipums_merged['race_hispan'] = acs_ipums_merged['hispan'].apply(lambda x: 'hispanic' if x in [1,2,3,4] else '')
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged['hispan'].apply(lambda x: 'hispanic' if x in [1,2,3,4] else '')
 # replace race_hispan = "black" if race == 2 & race_hispan == ""
-acs_ipums_merged['race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'black' if (x.race==2) & (x.race_hispan=='')  else x.race_hispan, axis=1)
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'black' if (x.race==2) & (x.race_hispan=='')  else x.race_hispan, axis=1)
 # replace race_hispan = "white" if race == 1 & race_hispan == ""
-acs_ipums_merged['race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'white' if (x.race==1) & (x.race_hispan=='')  else x.race_hispan, axis=1)
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'white' if (x.race==1) & (x.race_hispan=='')  else x.race_hispan, axis=1)
 # encode race_hispan, gen(race_hispan_cat)
 
 # /*************************************
 # * Get Summary Stats for SEMCOG Region
 # *************************************/
+print_with_runtime("Get Summary Stats for SEMCOG Region")
 
 # * Keep only data in SEMCOG
 # keep if semcog == 1
+acs_ipums_merged = acs_ipums_merged[(acs_ipums_merged['stpuma'] <= 2603300) & (acs_ipums_merged['stpuma'] > 2602700)]
+acs_ipums_merged.to_csv(os.path.join(int_data, 'ipums_semcog.csv'), index=False)
+
+##### trying to get the intermediate data in here 
 
 # /************************************
 # * Get mean and median income by PUMA
 # ************************************/
+print_with_runtime("Get mean and median income by PUMA...")
 # preserve 
 # collapse (mean) hhi3cl18 (median) hhi3cl18_med = hhi3cl18 [fw=perwt], by(stpuma year)
 
 # Apply perwt and generate income by puma summary table 
 weighted_per_df = acs_ipums_merged[['hhi3cl18', 'perwt', 'year', 'stpuma']]
-weighted_per_df['perwt'] = weighted_per_df['perwt'].apply(lambda x: [1 for i in range(x)])
-weighted_per_df = weighted_per_df.explode('perwt')
+weighted_per_df.loc[:, 'perwt'] = weighted_per_df['perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_per_df.loc[:, :] = weighted_per_df.explode('perwt')
 income_by_puma = weighted_per_df.pivot_table(values='hhi3cl18', index=["stpuma","year"], aggfunc=[np.mean, np.median]).unstack()
 
 # reshape wide hhi3cl18 hhi3cl18_med, i(stpuma) j(year)
@@ -384,17 +417,18 @@ income_by_puma.to_csv(os.path.join(final_data, 'income_by_puma_test.csv'), index
 # /************************************
 # * Get % of income thresholds for SEMCOG by race/ethnicity
 # ************************************/
+print_with_runtime("Get % of income thresholds for SEMCOG by race/ethnicity...")
 # preserve 
 # collapse (mean) lower_hhi middle_hhi upper_hhi [fw=perwt], by(year)
 # Apply perwt and generate income by puma summary table 
-weighted_total_cat_df = acs_ipums_merged[['lower_hhi', 'middle_hhi', 'upper_hhi', 'perwt', 'year']]
-weighted_total_cat_df['perwt'] = weighted_total_cat_df['perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_total_cat_df = acs_ipums_merged[['stpuma', 'lower_hhi', 'middle_hhi', 'upper_hhi', 'perwt', 'year']]
+weighted_total_cat_df.loc[:, 'perwt'] = weighted_total_cat_df['perwt'].apply(lambda x: [1 for i in range(x)])
 weighted_total_cat_df = weighted_total_cat_df.explode('perwt')
 total_cat = weighted_total_cat_df.pivot_table(values=['lower_hhi', 'middle_hhi', 'upper_hhi'], index=["year"], aggfunc=[np.mean])
 total_cat.columns = total_cat.columns.droplevel(level=0)
 total_cat = total_cat.rename(columns=lambda x: x+'_mean')
 total_cat = total_cat.reset_index()
-total_cat['race_hispan'] = pd.Series(["All race/ethnicity" for i in range(len(total_cat.index))], index=total_cat.index)
+total_cat.loc[:, 'race_hispan'] = pd.Series(["All race/ethnicity" for i in range(len(total_cat.index))], index=total_cat.index)
 
 # gen race_hispan = "All race/ethnicity"
 
@@ -412,7 +446,7 @@ total_cat['race_hispan'] = pd.Series(["All race/ethnicity" for i in range(len(to
 # sort year race_hispan
 # Apply perwt and generate income by puma summary table 
 weighted_per_by_race_df = acs_ipums_merged[['lower_hhi', 'middle_hhi', 'upper_hhi', 'race_hispan', 'perwt', 'year']]
-weighted_per_by_race_df['perwt'] = weighted_per_by_race_df['perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_per_by_race_df.loc[:, 'perwt'] = weighted_per_by_race_df['perwt'].apply(lambda x: [1 for i in range(x)])
 weighted_per_by_race_df = weighted_per_by_race_df.explode('perwt')
 income_by_puma = weighted_per_by_race_df.pivot_table(values=['lower_hhi', 'middle_hhi', 'upper_hhi'], index=["year", "race_hispan"], aggfunc=[np.mean])
 income_by_puma.columns = income_by_puma.columns.droplevel(level=0)
@@ -420,8 +454,9 @@ income_by_puma = income_by_puma.rename(columns=lambda x: x+'_mean')
 income_by_puma = income_by_puma.reset_index()
 income_by_puma = income_by_puma.append(total_cat, ignore_index=True, sort=False)
 income_by_puma = income_by_puma[income_by_puma['race_hispan']!=''].sort_values(by=['year', 'race_hispan']).reset_index()
-del income_by_puma['index']
+del income_by_puma.loc[:, 'index']
 
 # * Save data 
 # export delimited "$final_data/income_categories.csv", replace
 income_by_puma.to_csv(os.path.join(final_data, 'income_categories_test.csv'), index=False)
+print_with_runtime("Done")
