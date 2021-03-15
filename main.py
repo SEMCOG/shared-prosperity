@@ -299,20 +299,20 @@ acs_ipums_merged.loc[:, 'rpp_all_items'] = acs_ipums_merged.loc[:, 'rpp_all_item
 
 # * Use nonmetro RPP if not in a metro area
 # gen hhi3      = hhincome*sqrt(3)/sqrt(numprec)
-acs_ipums_merged.loc[:, 'hhi3'] = acs_ipums_merged[['hhincome', 'numprec']].apply(lambda x: (x.hhincome*np.sqrt(3))/np.sqrt(x.numprec), axis=1)
+acs_ipums_merged.loc[:, 'hhi3'] = acs_ipums_merged.loc[:, ['hhincome', 'numprec']].apply(lambda x: np.divide(x.hhincome*np.sqrt(3), np.sqrt(x.numprec)), axis=1)
 # gen hhi3cl    = hhi3/(rpp_all_items*.01)
-acs_ipums_merged.loc[:, 'hhi3cl'] = acs_ipums_merged[['hhi3', 'rpp_all_items']].apply(lambda x: x.hhi3/(x.rpp_all_items*0.01), axis=1)
+acs_ipums_merged.loc[:, 'hhi3cl'] = acs_ipums_merged.loc[:, ['hhi3', 'rpp_all_items']].apply(lambda x: np.divide(x.hhi3, x.rpp_all_items*0.01), axis=1)
 
 # * Calculate Median Incomes by year and save in a temp file
 print_with_runtime("Calculate Median Incomes by year...")
 # preserve 
 # keep if pernum == 1
-median_income_ipums = acs_ipums_merged[acs_ipums_merged['pernum'] == 1]
+median_income_ipums = acs_ipums_merged[acs_ipums_merged.loc[:, 'pernum'] == 1]
 
 # collapse (p50) hhi3 [pw = hhwt], by(year)
-weighted_hh_df = median_income_ipums[['hhi3', 'hhwt', 'year']]
+weighted_hh_df = median_income_ipums.loc[:, ['hhi3', 'hhwt', 'year']]
 weighted_hh_df.loc[:, 'hhwt'] = weighted_hh_df.loc[:, 'hhwt'].apply(lambda x: [1 for i in range(x)])
-weighted_hh_df.loc[:, :] = weighted_hh_df.explode('hhwt')
+weighted_hh_df = weighted_hh_df.explode('hhwt')
 
 # if it contains NaN values 
 hhi3_pivot_by_year = weighted_hh_df.pivot_table(values='hhi3', index=["year"], aggfunc=np.median)
@@ -320,7 +320,7 @@ hhi3_pivot_by_year.loc[:, 'hhi3'] = hhi3_pivot_by_year.loc[:, 'hhi3'].astype('fl
 
 # rename hhi3 median_hhi3
 hhi3_pivot_by_year.loc[:, 'median_hhi3'] = hhi3_pivot_by_year.loc[:, 'hhi3'] 
-del hhi3_pivot_by_year.loc[:, 'hhi3'] 
+del hhi3_pivot_by_year['hhi3'] 
 
 # * Save median income in a temporary file to be merged back into ACS data
 # tempfile med_inc
@@ -335,11 +335,11 @@ acs_ipums_merged = acs_ipums_merged.merge(hhi3_pivot_by_year, how='left', on=['y
 # * Assign classifcation based on relation between hh income to median 
 print_with_runtime("Assign classifcation based on relation between hh income to median...")
 # gen lower_hhi  = (hhi3cl < (2/3)*median_hhi3)
-acs_ipums_merged.loc[:, 'lower_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl < (2/3)*x.median_hhi3, axis=1)
+acs_ipums_merged.loc[:, 'lower_hhi'] = acs_ipums_merged.loc[:, ['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl < (2/3)*x.median_hhi3, axis=1)
 # gen middle_hhi = (hhi3cl >= (2/3)*median_hhi3 & hhi3cl < 2*median_hhi3)
-acs_ipums_merged.loc[:, 'middle_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: (x.hhi3cl >= (2/3)*x.median_hhi3) & (x.hhi3cl < 2*x.median_hhi3), axis=1)
+acs_ipums_merged.loc[:, 'middle_hhi'] = acs_ipums_merged.loc[:, ['hhi3cl', 'median_hhi3']].apply(lambda x: (x.hhi3cl >= (2/3)*x.median_hhi3) & (x.hhi3cl < 2*x.median_hhi3), axis=1)
 # gen upper_hhi  = (hhi3cl > 2*median_hhi3)
-acs_ipums_merged.loc[:, 'upper_hhi'] = acs_ipums_merged[['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl > 2*x.median_hhi3,  axis=1)
+acs_ipums_merged.loc[:, 'upper_hhi'] = acs_ipums_merged.loc[:, ['hhi3cl', 'median_hhi3']].apply(lambda x: x.hhi3cl > 2*x.median_hhi3,  axis=1)
 
 # * Merge in PCE data and inflation adjust Household income
 # merge m:1 year using "$int_data/pce.dta", nogen keep(3)
@@ -354,16 +354,16 @@ pce_18 = pce_annual_table[pce_annual_table.year == 2018].pce.values[0]
 # * Inflation adjust income to 2018 values
 print_with_runtime("Inflation adjust income to 2018 values...")
 # gen hhi3cl18 = hhi3cl * (`pce_18'/pce)
-acs_ipums_merged.loc[:, 'hhi3cl18'] = acs_ipums_merged[['hhi3cl', 'pce']].apply(lambda x: x.hhi3cl * (pce_18 / x.pce), axis=1)
+acs_ipums_merged.loc[:, 'hhi3cl18'] = acs_ipums_merged.loc[:, ['hhi3cl', 'pce']].apply(lambda x: x.hhi3cl * (pce_18 / x.pce), axis=1)
 
 # * Create Race/Ethnicity variable
 print_with_runtime("Create Race/Ethnicity variable...")
 # gen race_hispan = "hispanic" if inlist(hispan,1,2,3,4)
-acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged['hispan'].apply(lambda x: 'hispanic' if x in [1,2,3,4] else '')
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged.loc[:, 'hispan'].apply(lambda x: 'hispanic' if x in [1,2,3,4] else '')
 # replace race_hispan = "black" if race == 2 & race_hispan == ""
-acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'black' if (x.race==2) & (x.race_hispan=='')  else x.race_hispan, axis=1)
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged.loc[:, ['race', 'race_hispan']].apply(lambda x: 'black' if (x.race==2) & (x.race_hispan=='')  else x.race_hispan, axis=1)
 # replace race_hispan = "white" if race == 1 & race_hispan == ""
-acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged[['race', 'race_hispan']].apply(lambda x: 'white' if (x.race==1) & (x.race_hispan=='')  else x.race_hispan, axis=1)
+acs_ipums_merged.loc[:, 'race_hispan'] = acs_ipums_merged.loc[:, ['race', 'race_hispan']].apply(lambda x: 'white' if (x.race==1) & (x.race_hispan=='')  else x.race_hispan, axis=1)
 # encode race_hispan, gen(race_hispan_cat)
 
 # /*************************************
@@ -373,7 +373,7 @@ print_with_runtime("Get Summary Stats for SEMCOG Region")
 
 # * Keep only data in SEMCOG
 # keep if semcog == 1
-acs_ipums_merged = acs_ipums_merged[(acs_ipums_merged['stpuma'] <= 2603300) & (acs_ipums_merged['stpuma'] > 2602700)]
+acs_ipums_merged = acs_ipums_merged[(acs_ipums_merged.loc[:, 'stpuma'] <= 2603300) & (acs_ipums_merged.loc[:, 'stpuma'] > 2602700)]
 acs_ipums_merged.to_csv(os.path.join(int_data, 'ipums_semcog.csv'), index=False)
 
 ##### trying to get the intermediate data in here 
@@ -386,9 +386,9 @@ print_with_runtime("Get mean and median income by PUMA...")
 # collapse (mean) hhi3cl18 (median) hhi3cl18_med = hhi3cl18 [fw=perwt], by(stpuma year)
 
 # Apply perwt and generate income by puma summary table 
-weighted_per_df = acs_ipums_merged[['hhi3cl18', 'perwt', 'year', 'stpuma']]
-weighted_per_df.loc[:, 'perwt'] = weighted_per_df['perwt'].apply(lambda x: [1 for i in range(x)])
-weighted_per_df.loc[:, :] = weighted_per_df.explode('perwt')
+weighted_per_df = acs_ipums_merged.loc[:, ['hhi3cl18', 'perwt', 'year', 'stpuma']]
+weighted_per_df.loc[:, 'perwt'] = weighted_per_df.loc[:, 'perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_per_df = weighted_per_df.explode('perwt')
 income_by_puma = weighted_per_df.pivot_table(values='hhi3cl18', index=["stpuma","year"], aggfunc=[np.mean, np.median]).unstack()
 
 # reshape wide hhi3cl18 hhi3cl18_med, i(stpuma) j(year)
@@ -421,8 +421,8 @@ print_with_runtime("Get % of income thresholds for SEMCOG by race/ethnicity...")
 # preserve 
 # collapse (mean) lower_hhi middle_hhi upper_hhi [fw=perwt], by(year)
 # Apply perwt and generate income by puma summary table 
-weighted_total_cat_df = acs_ipums_merged[['stpuma', 'lower_hhi', 'middle_hhi', 'upper_hhi', 'perwt', 'year']]
-weighted_total_cat_df.loc[:, 'perwt'] = weighted_total_cat_df['perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_total_cat_df = acs_ipums_merged.loc[:, ['stpuma', 'lower_hhi', 'middle_hhi', 'upper_hhi', 'perwt', 'year']]
+weighted_total_cat_df.loc[:, 'perwt'] = weighted_total_cat_df.loc[:, 'perwt'].apply(lambda x: [1 for i in range(x)])
 weighted_total_cat_df = weighted_total_cat_df.explode('perwt')
 total_cat = weighted_total_cat_df.pivot_table(values=['lower_hhi', 'middle_hhi', 'upper_hhi'], index=["year"], aggfunc=[np.mean])
 total_cat.columns = total_cat.columns.droplevel(level=0)
@@ -445,16 +445,16 @@ total_cat.loc[:, 'race_hispan'] = pd.Series(["All race/ethnicity" for i in range
 # drop if race_hispan == ""
 # sort year race_hispan
 # Apply perwt and generate income by puma summary table 
-weighted_per_by_race_df = acs_ipums_merged[['lower_hhi', 'middle_hhi', 'upper_hhi', 'race_hispan', 'perwt', 'year']]
-weighted_per_by_race_df.loc[:, 'perwt'] = weighted_per_by_race_df['perwt'].apply(lambda x: [1 for i in range(x)])
+weighted_per_by_race_df = acs_ipums_merged.loc[:, ['lower_hhi', 'middle_hhi', 'upper_hhi', 'race_hispan', 'perwt', 'year']]
+weighted_per_by_race_df.loc[:, 'perwt'] = weighted_per_by_race_df.loc[:, 'perwt'].apply(lambda x: [1 for i in range(x)])
 weighted_per_by_race_df = weighted_per_by_race_df.explode('perwt')
 income_by_puma = weighted_per_by_race_df.pivot_table(values=['lower_hhi', 'middle_hhi', 'upper_hhi'], index=["year", "race_hispan"], aggfunc=[np.mean])
 income_by_puma.columns = income_by_puma.columns.droplevel(level=0)
 income_by_puma = income_by_puma.rename(columns=lambda x: x+'_mean')
 income_by_puma = income_by_puma.reset_index()
 income_by_puma = income_by_puma.append(total_cat, ignore_index=True, sort=False)
-income_by_puma = income_by_puma[income_by_puma['race_hispan']!=''].sort_values(by=['year', 'race_hispan']).reset_index()
-del income_by_puma.loc[:, 'index']
+income_by_puma = income_by_puma[income_by_puma.loc[:, 'race_hispan']!=''].sort_values(by=['year', 'race_hispan']).reset_index()
+del income_by_puma['index']
 
 # * Save data 
 # export delimited "$final_data/income_categories.csv", replace
